@@ -15,11 +15,7 @@ import xmlrpclib
 import sys
 
 
-# Variables
-# --- Register
-register = ("192.168.0.1", 8000)
-reg_proxy = xmlrpclib.ServerProxy("http://%s:%d/" % register)
-
+# Default Variables
 firewall = ("192.168.0.2", 8000)
 fw_proxy = xmlrpclib.ServerProxy("http://%s:%d/" % firewall )
 
@@ -124,7 +120,6 @@ if __name__ == '__main__':
                     common.log("########### Mode %s ###########" % mode)
                     if mode == "naive": algo = naive
                     elif mode == "parallel": algo = parallel
-                    elif mode == "interlaced": algo = parallel
 
                     runner = algo.Algorithm(attackers, vic, types, timings, firewalls, log_nb_attackers, logdir)
                     runner.run()

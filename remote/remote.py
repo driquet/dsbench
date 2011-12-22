@@ -19,21 +19,15 @@ import threading
 
 class Remote():
     """ Remote class for Nmap Manager """
-    def __init__(self, addr, manager, firewall=False):
+    def __init__(self, addr, firewall=False):
         # Initialisation
         self._addr = addr
         self._server =  SimpleXMLRPCServer(addr, allow_none=True)
-        self._proxy = xmlrpclib.ServerProxy("http://%s:%d/" % (manager))
         self._process = None
         self._log = open("remotelog.txt", "a+")
         self._logfile = None
         self._logfilename = ""
         self._timestamps = None
-
-        # Registering to the manager
-        if not firewall:
-            self.log("Registering")
-            self._proxy.register(addr)
 
         # Registering commands
         self._server.register_function(self.run, "run")
@@ -237,15 +231,10 @@ class Remote():
         return file
 
 
-    def unregister(self):
-        """ Unregistrer from the Nmap Manager """
-        self._proxy.unregister(self._addr)
-
 
 def main():
     # Variables
     remoteAddr = ("localhost", 8000)
-    serverAddr = ("172.16.0.1", 8000)
     firewall = False
 
     # Parsing arguments
@@ -267,15 +256,13 @@ def main():
 
 
     # Initialisation
-    remote = Remote(remoteAddr, serverAddr, firewall)
+    remote = Remote(remoteAddr, firewall)
 
     # Serving forever
     try:
         print "You an stop me at anytime by pressing ^C"
         remote._server.serve_forever()
     except KeyboardInterrupt:
-        if not firewall:
-            remote.unregister()
         remote.log("Remote host stopped")
         remote._log.close()
 
