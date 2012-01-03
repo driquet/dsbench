@@ -8,6 +8,7 @@ Description: Remote Python program launched on scanner hosts
                 * Timestamps of the beginning and ending of the portscan.
              RPC methods are:
                 * exec_scan: execute a portscan,
+                * poll_scan: poll a portscan,
                 * stop_scan: stop a scan and return scan data (described above), 
                 * scan_state: return the state of the scan and possibly stop it if scanner host has been detected,
 
@@ -19,6 +20,10 @@ import os
 import logging
 import pexpect
 import re
+import sys
+import getopt
+import threading
+from SimpleXMLRPCServer import SimpleXMLRPCServer
 
 import constant
 
@@ -67,11 +72,11 @@ port_state_re = re.compile("Discovered"
 class Scanner():
     """ Distributed scanner used in distributed portscan """
 
-    def __init__(self, debug=False):
+    def __init__(self, addr = ("localhost", 8000), debug=False):
         """ Initialization """
         ## Initialisation
         self._process = None
-        # TODO log, addr
+        self._addr = addr
 
         ## Portscan variables
         self._nbports = 0 # Number of ports being scanned
@@ -82,7 +87,7 @@ class Scanner():
 
         ## Initialization
         self.init_logging(debug)
-        # init_rcp()
+        self.init_rpc()
 
 
     def init_logging(self, debug=False):
@@ -113,7 +118,17 @@ class Scanner():
 
     def init_rpc(self):
         """ Initialization of RPC remote methods """
-        self._server =  SimpleXMLRPCServer(addr, allow_none=True)
+        self._server =  SimpleXMLRPCServer(self._addr, allow_none=True)
+        # Registering commands
+        self._server.register_function(self.exec_scan_rpc, "exec_scan")
+        self._server.register_function(self.stop_scan, "stop_scan")
+        self._server.register_function(self.poll_scan, "poll_scan")
+        self._server.register_function(self.scan_state, "scan_state")
+
+    def exec_scan_rpc(self, scantype, timing, target, ports='-F'):
+        """ RPC method called: create a thread to launch the portscan """
+        t = threading.Timer(0, self.exec_scan, [scantype, timing, target, ports])
+        t.start()
 
     def exec_scan(self, scantype, timing, target, ports='-F'):
         """ Execute a portscan """
@@ -122,6 +137,11 @@ class Scanner():
         self._portstate = {} # Contains all port to be scanned and their state
         self._traffic = {} # Contains the generated traffic
         self._timestamps = {} # Contains timestamps of the beginning and ending of the portscan
+
+        ## Filling traffic structure
+        self._traffic['sent'] = {}
+        self._traffic['rcvd'] = {}
+        self._traffic['both'] = {}
 
         day_n_hour = time.strftime("%d-%m-%y_%H-%M-%S")
         self._logfilename = "log/%s_%s.xml" % (constant.types[scantype].split()[0].lower(), day_n_hour) # Filename in which is stored debug messages
@@ -182,7 +202,8 @@ class Scanner():
             if m:
                 logger.debug("TCP SENT -- %s:%s -> %s:%s -- flags (%s) -- seq %s"
                         % (m.group('ip_src'), m.group('port_src'), m.group('ip_dst'), m.group('port_dst'), m.group('flags'), m.group('seq')))
-                add_traffic_event(self._traffic['sent'], m.group('ip_dst'), int(m.group('port_dst')), (m.group('flags'), m.group('seq')))
+                add_traffic_event(self._traffic['sent'], m.group('ip_dst'), m.group('port_dst'), (m.group('flags'), m.group('seq'), time.time()))
+                add_traffic_event(self._traffic['both'], m.group('ip_dst'), m.group('port_dst'), ('out', m.group('flags'), m.group('seq'), time.time()))
                 continue
 
             # Received
@@ -190,7 +211,8 @@ class Scanner():
             if m:
                 logger.debug("TCP RCVD -- %s:%s -> %s:%s -- flags (%s) -- seq %s"
                         % (m.group('ip_src'), m.group('port_src'), m.group('ip_dst'), m.group('port_dst'), m.group('flags'), m.group('seq')))
-                add_traffic_event(self._traffic['rcvd'], m.group('ip_dst'), int(m.group('port_dst')), (m.group('flags'), m.group('seq')))
+                add_traffic_event(self._traffic['rcvd'], m.group('ip_src'), m.group('port_src'), (m.group('flags'), m.group('seq'), time.time()))
+                add_traffic_event(self._traffic['both'], m.group('ip_src'), m.group('port_src'), ('in', m.group('flags'), m.group('seq'), time.time()))
                 continue
 
             ## Port state
@@ -202,30 +224,69 @@ class Scanner():
                 self._nbports -= 1
                 if not self._nbports:
                     logger.info("Scan finished")
-                self._portstate[int(m.group('port'))] = (m.group('state'), time.time())
+                self._portstate[m.group('port')] = (m.group('state'), time.time())
                 continue
 
         self._timestamps['end'] = time.time()
 
 
+    def scan_state(self):
+        """ Return state of the current (or not -- at least the last one) portscan """
+        return self._portstate, self._traffic
 
-        ## Finish the portscan
+    def stop_scan(self):
+        """ Stop the current scan"""
+        logger.info("Scan stopped")
+        self._process.kill(9)
+
+    def poll_scan(self):
+        logger.debug("Scan polled")
+        return self._process.isalive()
+
 
 
 def add_traffic_event(struct, dst, port, item):
     """ Add a traffic event to the traffic structure """
     # Create intermediary dict
     if dst not in struct:
+        print 'creating ', dst
         struct[dst] = {}
     if port not in struct[dst]:
+        print 'creating ', port
         struct[dst][port] = []
 
     # Fill data 
-    if struct[dst][port].append(item)
+    struct[dst][port].append(item)
 
 
 
 if __name__ == '__main__':
-    scanner = Scanner(debug=True)
-    scanner.exec_scan('-sS', 'polite', '172.16.0.10', [22,80])
+    # Variables
+    remoteAddr = ("localhost", 8000)
 
+    # Parsing arguments
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'i:p:')
+    except getopt.GetoptError, err:
+        print "Bad arguments"
+        print str(err)
+        sys.exit(2)
+
+    for o, a in opts:
+        if o == "-i":
+            remoteAddr = (a,remoteAddr[1])
+        elif o == "-p":
+            remoteAddr = (remoteAddr[0],int(a))
+        else:
+            print "Unknown option"
+
+
+    # Initialisation
+    scanner = Scanner(remoteAddr, debug=True)
+
+    # Serving forever
+    try:
+        print "You an stop me at anytime by pressing ^C"
+        scanner._server.serve_forever()
+    except KeyboardInterrupt:
+        pass
