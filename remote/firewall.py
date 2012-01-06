@@ -72,19 +72,20 @@ class Firewall:
         # Registering commands
         self._server.register_function(self.start_snitch_rpc, "start_snitch")
         self._server.register_function(self.stop_snitch, "stop_snitch")
+        self._server.register_function(self.snitch_state, "snitch_state")
 
     def start_snitch_rpc(self, pattern, logfile, timing):
         """ RPC method: launch a thread that creates the snitch """
         t = threading.Timer(0, self.start_snitch, [pattern, logfile, timing])
         t.start()
     
-    def start_snitch(self, pattern, logfile, timing):
+    def start_snitch(self, patterns, logfile, timing):
         """ Create a snitch
             Open the logfile and read it until the coordinator stop the experiment
         """
 
         logger.info("Starting firewall snitch...")
-        logger.info("Pattern: %s" %' '.join(pattern))
+        logger.info("Pattern: %s" %' '.join(patterns))
         logger.info("logfile: %s" % logfile)
         logger.info("timing: %s" % timing)
         # Initialization
@@ -98,13 +99,70 @@ class Firewall:
             while self._active:
                 # Read the file
                 lines = f.readlines()
-                lines = ''.join(lines).strip()
 
-                if lines:
-                    logger.debug("logfile output: %s" % lines)
+                if len(lines):
+                    # There is something on the output
+                    for line in lines:
+                        logger.debug("logfile output: %s" % line.strip())
+                    
+                    # Analyse the output
+                    self.analyse_output(lines, patterns)
+                    
+
 
                 time.sleep(timing)
                 
+
+    def analyse_output(self, lines, patterns):
+        """ Analyse output and detect IDSs alerts
+            Snort analysis -- possible states :
+        """
+
+        alert_pattern_re = re.compile("\[\*\*\] \[.*\] "
+                "(?P<alert>.*)"
+                " \[\*\*\]\n"
+                ".*\n"
+                "(?P<time>\d{2}/\d{2}"
+                "-\d{2}:\d{2}:\d{2})\.\d+ "
+                "(?P<ip_src>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+                " -> "
+                "(?P<ip_dst>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+                "\n"
+            )
+
+        lines = ''.join(lines)
+
+        for m in alert_pattern_re.finditer(lines):
+            # Alert found
+            time_str = "%d/%s" % (time.gmtime().tm_year, m.group('time'))
+
+            timestamp = time.strptime(time_str, "%Y/%m/%d-%H:%M:%S")
+
+            logging.info("Alert found: %s -- %s  -- %s -> %s" %
+                    (m.group('alert'), time.asctime(timestamp),
+                     m.group('ip_src'), m.group('ip_dst')))
+    
+            alert = m.group('alert')
+
+            # Is there any matching patterns ?
+            matching_patterns = []
+            for p in patterns:
+                if re.search(p.lower(), alert.lower()):
+                    matching_patterns.append(p)
+
+            if len(matching_patterns):
+                logging.info("Alert matches following patterns: %s" % ', '.join(matching_patterns))
+
+                new_alert = {}
+                new_alert['patterns'] = list(matching_patterns)
+                new_alert['ip_src'] = m.group('ip_src')
+                new_alert['ip_dst'] = m.group('ip_dst')
+                new_alert['date'] = time.mktime(timestamp)
+
+                # Adding alert
+                self._detected_ips.append(new_alert)
+
+
 
 
         
@@ -114,18 +172,27 @@ class Firewall:
         self._active = False
 
     def snitch_state(self):
-        """docstring for snitch_state"""
-        pass
-
+        """ Return the current detected scaners """
+        logger.debug("Getting firewall snitch state...")
+        return self._detected_ips
+        
 
 
 if __name__ == '__main__':
     addr = ('localhost', 8000)
     firewall_snitch = Firewall(addr)
 
+    firewall_snitch.start_snitch_rpc(['scan', 'portscan'], 'scanner.log', 1)
+
+    while not len(firewall_snitch.snitch_state()):
+        time.sleep(1)
+
+    firewall_snitch.stop_snitch()
+
+
     # Serving forever
-    try:
-        print "You an stop me at anytime by pressing ^C"
-        firewall_snitch._server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+#   try:
+#       print "You an stop me at anytime by pressing ^C"
+#       firewall_snitch._server.serve_forever()
+#   except KeyboardInterrupt:
+#       pass
