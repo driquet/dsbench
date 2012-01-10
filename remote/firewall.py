@@ -168,7 +168,7 @@ class Firewall:
         
     def stop_snitch(self):
         """ Stop the snitch """
-        logger.info("Stoping firewall snitch...")
+        logger.info("Stopping firewall snitch...")
         self._active = False
 
     def snitch_state(self):

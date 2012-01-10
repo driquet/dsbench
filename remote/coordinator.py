@@ -28,11 +28,19 @@ if __name__ == '__main__':
 #       for port in traffic['both'][dst]:
 #           print port, traffic['both'][dst][port]
 
-    firewall_addr = ('localhost', 8000)
-    firewall = xmlrpclib.ServerProxy("http://%s:%d/" % firewall_addr)
+    target_addr = ('172.16.0.10', 8000)
+    target = xmlrpclib.ServerProxy("http://%s:%d/" % target_addr)
 
-    firewall.start_snitch(['toto', 'pwet'], 'scanner.log', 0.1)
+    target.start_monitor(["172.16.0.1"])
 
-    time.sleep(20)
+    time.sleep(2)
+    target.stop_monitor()
+    traffic = target.get_traffic()
 
-    firewall.stop_snitch()
+    for scanner in traffic:
+        print "scanner", scanner
+        for port in traffic[scanner]:
+            print "    port", port
+            for pkt in traffic[scanner][port]:
+                print "        pkt", pkt
+
