@@ -259,6 +259,13 @@ def add_traffic_event(struct, dst, port, item):
     struct[dst][port].append(item)
 
 
+def usage(name):
+    """ Print usage"""
+    print "Usage: python %s <args>" % name
+    print "     -h        : print this help"
+    print "     -i <ip>   : IP Address reacheable using RPC (default is localhost)"
+    print "     -p <port> : Port used for RPC methods (default is 8000)"
+
 
 if __name__ == '__main__':
     # Variables
@@ -266,10 +273,11 @@ if __name__ == '__main__':
 
     # Parsing arguments
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'i:p:')
+        opts, args = getopt.getopt(sys.argv[1:], 'i:p:h')
     except getopt.GetoptError, err:
         print "Bad arguments"
         print str(err)
+        usage(args[0])
         sys.exit(2)
 
     for o, a in opts:
@@ -277,6 +285,9 @@ if __name__ == '__main__':
             remoteAddr = (a,remoteAddr[1])
         elif o == "-p":
             remoteAddr = (remoteAddr[0],int(a))
+        elif o == "-h":
+            usage(args[0])
+            sys.exit(2)
         else:
             print "Unknown option"
 
@@ -286,7 +297,7 @@ if __name__ == '__main__':
 
     # Serving forever
     try:
-        print "You an stop me at anytime by pressing ^C"
+        print "You can stop me at anytime by pressing ^C"
         scanner._server.serve_forever()
     except KeyboardInterrupt:
         pass

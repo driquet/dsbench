@@ -176,23 +176,44 @@ class Firewall:
         logger.debug("Getting firewall snitch state...")
         return self._detected_ips
         
+def usage(name):
+    """ Print usage"""
+    print "Usage: python %s <args>" % name
+    print "     -h        : print this help"
+    print "     -i <ip>   : IP Address reacheable using RPC (default is localhost)"
+    print "     -p <port> : Port used for RPC methods (default is 8000)"
 
 
 if __name__ == '__main__':
-    addr = ('localhost', 8000)
-    firewall_snitch = Firewall(addr)
+    # Variables
+    remoteAddr = ('localhost', 8000)
 
-    firewall_snitch.start_snitch_rpc(['scan', 'portscan'], 'scanner.log', 1)
+    # Parsing arguments
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'i:p:h')
+    except getopt.GetoptError, err:
+        print "Bad arguments"
+        print str(err)
+        usage(sys.argv[0])
+        sys.exit(2)
 
-    while not len(firewall_snitch.snitch_state()):
-        time.sleep(1)
+    for o, a in opts:
+        if o == "-i":
+            remoteAddr = (a,remoteAddr[1])
+        elif o == "-p":
+            remoteAddr = (remoteAddr[0],int(a))
+        elif o == "-h":
+            usage(sys.argv[0])
+            sys.exit(2)
+        else:
+            print "Unknown option"
 
-    firewall_snitch.stop_snitch()
+    firewall_snitch = Firewall(remoteAddr)
 
 
     # Serving forever
-#   try:
-#       print "You an stop me at anytime by pressing ^C"
-#       firewall_snitch._server.serve_forever()
-#   except KeyboardInterrupt:
-#       pass
+    try:
+        print "You can stop me at anytime by pressing ^C"
+        firewall_snitch._server.serve_forever()
+    except KeyboardInterrupt:
+        pass

@@ -1,0 +1,44 @@
+{
+    "hosts":
+    {
+        "scanners":
+            [
+                {
+                    "ip"   : "192.168.0.101-164",
+                    "port" : 8000
+                }
+            ],
+        "targets":
+            [
+                {
+                    "ip"   : "172.16.0.101-164",
+                    "port" : 8000
+                }
+            ],
+        "firewalls":
+            [
+                {
+                    "ip"   : "172.16.0.2",
+                    "port" : 8000
+                }
+            ]
+    },
+
+    "attack":
+    {
+        "distributionMethods" : ["naive", "parallel"],
+        "scanMethods"         : ["sS", "sF"],
+        "scanTiming"          : ["insane", "aggressive"],
+        "port"                : 
+            [
+                22, 80
+            ]
+    },
+
+    "experiments":
+    {
+        "scannerNumberValues" : [1,2,4,8,16,32,64],
+        "targetNumberValues"  : [1,2,4,8,16,32,64],
+        "count"               : 25
+    }
+}
