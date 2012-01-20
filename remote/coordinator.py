@@ -127,6 +127,25 @@ if __name__ == '__main__':
     # Parse configuration file
     conf = parse_configuration_file(conf)
 
+
+    # Running experimentations for each distribution method 
+    for method in conf['experiments']['distributionMethods']:
+        distrib_method = None
+
+        # Selecting distribution method
+        if method == "naive": distrib_method = naive
+        elif method == "parallel": distrib_method = parallel
+        ## TODO : other distribution methods
+        else:
+            logger.info("Unknown distribution method")
+            continue
+
+        logger.info("Experiment launched -- distribution method : %s" % method)
+        experiment = distrib_method.run(logger, conf)
+        
+
+        
+
     
 
 

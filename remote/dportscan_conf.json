@@ -24,21 +24,18 @@
             ]
     },
 
-    "attack":
+
+    "experiments":
     {
         "distributionMethods" : ["naive", "parallel"],
         "scanMethods"         : ["sS", "sF"],
         "scanTiming"          : ["insane", "aggressive"],
+        "scannerNumberValues" : [1,2,4,8,16,32,64],
+        "targetNumberValues"  : [1,2,4,8,16,32,64],
+        "count"               : 25
         "port"                : 
             [
                 22, 80
             ]
-    },
-
-    "experiments":
-    {
-        "scannerNumberValues" : [1,2,4,8,16,32,64],
-        "targetNumberValues"  : [1,2,4,8,16,32,64],
-        "count"               : 25
     }
 }
