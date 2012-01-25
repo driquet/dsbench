@@ -29,6 +29,7 @@ class Target:
         # Attributes
         self._monitor = []
         self._traffic = {}
+        self._open_ports = []
         self._addr = addr
 
         # Init
@@ -46,6 +47,7 @@ class Target:
         self._server.register_function(self.start_monitor_rpc, "start_monitor")
         self._server.register_function(self.stop_monitor, "stop_monitor")
         self._server.register_function(self.get_traffic, "get_traffic")
+        self._server.register_function(self.get_open_ports, "get_open_ports")
 
     def init_logging(self, debug=False):
         """ Initialization of the logging module 
@@ -76,6 +78,40 @@ class Target:
         """ RPC method: launch a thread that creates the snitch """
         t = threading.Timer(0, self.start_monitor, [ips])
         t.start()
+
+    def get_open_ports(self):
+        """ Return a list containing open ports 
+            Actually, it will only return tcp open ports
+            This will work on a unix host for which port state can be accessed thanks to /proc/net/tcp file
+        """
+        # Read the content of the /proc/net/tcp file
+       with open('/proc/net/tcp', 'r') as f:
+            content = f.readlines()
+            content.pop(0)
+
+        # Processing each line
+        # We are looking for listening port (state '0A')
+        # Each line is formatted as follows:
+        # id local_ip:local_port remote_ip:remote_port state ....
+        open_ports = []
+
+        for line in content:
+            line_array = [x for x in line.split(' ') if x != '']
+            port_state = line_array[3]
+
+            if port_state == '0A':
+                # Listening port, add" it to the open ports list
+                # Fetch port number
+                host,port = line_array[1].split(':')
+                port = str(int(s, 16))
+
+                # Add it to the ports list
+                open_ports.append(port)
+
+        return open_ports
+
+        
+        
 
     def stop_monitor(self):
         """ Stop the monitor """
