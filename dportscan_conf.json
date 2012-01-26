@@ -27,15 +27,21 @@
 
     "experiments":
     {
-        "distributionMethods" : ["naive", "parallel"],
+        "distributionMethods" : ["parallel"],
         "scanMethods"         : ["sS"],
-        "scanTimings"          : ["insane", "aggressive"],
+        "scanTimings"         : ["insane", "aggressive"],
         "scannerNumberValues" : [1,2],
         "targetNumberValues"  : [1],
         "count"               : 3,
-        "ports"                : 
+        "ports"               : 
             [
-                22, 80
-            ]
+                22, 80, 443, 8080, 1234, 1231, 21, 52, 88, 15, 123
+            ],
+        "firewall_args":
+        {
+            "patterns"            : ["nmap", "portscan", "xmas", "scan"],
+            "logfile"             : "/var/log/snort/alert",
+            "timing"              : "0.1"
+        }
     }
 }

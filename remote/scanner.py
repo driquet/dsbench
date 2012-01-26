@@ -125,12 +125,12 @@ class Scanner():
         self._server.register_function(self.poll_scan, "poll_scan")
         self._server.register_function(self.scan_state, "scan_state")
 
-    def exec_scan_rpc(self, scantype, timing, target, ports='-F'):
+    def exec_scan_rpc(self, scantype, timing, target, ports='-F', coordinator=()):
         """ RPC method called: create a thread to launch the portscan """
         t = threading.Timer(0, self.exec_scan, [scantype, timing, target, ports])
         t.start()
 
-    def exec_scan(self, scantype, timing, target, ports='-F'):
+    def exec_scan(self, scantype, timing, target, ports='-F', coordinator=()):
         """ Execute a portscan """
         ## Portscan variables
         self._nbports = 0
@@ -228,6 +228,13 @@ class Scanner():
                 continue
 
         self._timestamps['end'] = time.time()
+
+        # Alert the coordinator that the portscan is finished
+        if len(coordinator):
+            # Create a RPC proxy and send an alert to the coordinator
+            coordinator_proxy = xmlrpclib.ServerProxy("http://%s:%d/" % coordinator)
+            coordinator_proxy.add_event(('scanner', self._addr[0]))
+
 
 
     def scan_state(self):

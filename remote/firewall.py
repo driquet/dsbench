@@ -74,14 +74,16 @@ class Firewall:
         self._server.register_function(self.stop_snitch, "stop_snitch")
         self._server.register_function(self.snitch_state, "snitch_state")
 
-    def start_snitch_rpc(self, pattern, logfile, timing):
+    def start_snitch_rpc(self, pattern, logfile, timing, coordinator=()):
         """ RPC method: launch a thread that creates the snitch """
-        t = threading.Timer(0, self.start_snitch, [pattern, logfile, timing])
+        t = threading.Timer(0, self.start_snitch, [pattern, logfile, timing, coordinator])
         t.start()
     
-    def start_snitch(self, patterns, logfile, timing):
+    def start_snitch(self, patterns, logfile, timing, coordinator=()):
         """ Create a snitch
             Open the logfile and read it until the coordinator stop the experiment
+                - coordinator is a list like (ip, port) containing ip and port of the coordinator
+                (it could be empty, that means we dont wan't the firewall to alert the coordinator)
         """
 
         logger.info("Starting firewall snitch...")
@@ -106,8 +108,15 @@ class Firewall:
                         logger.debug("logfile output: %s" % line.strip())
                     
                     # Analyse the output
-                    self.analyse_output(lines, patterns)
-                    
+                    new_alerts = self.analyse_output(lines, patterns)
+                   
+                    # If there is a new alert, alert the coordinator (if there is one)
+                    if len(new_alerts) and len(coordinator):
+                        # Create a RPC proxy and send an alert to the coordinator
+                        coordinator_proxy = xmlrpclib.ServerProxy("http://%s:%d/" % coordinator)
+                        for new_alert in new_alerts:
+                            coordinator_proxy.add_event(('firewall', new_alert))
+
 
 
                 time.sleep(timing)
@@ -131,6 +140,7 @@ class Firewall:
             )
 
         lines = ''.join(lines)
+        new_alerts = []
 
         for m in alert_pattern_re.finditer(lines):
             # Alert found
@@ -161,6 +171,9 @@ class Firewall:
 
                 # Adding alert
                 self._detected_ips.append(new_alert)
+                new_alerts.append(new_alert)
+
+        return new_alerts
 
 
 

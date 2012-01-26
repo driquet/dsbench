@@ -20,13 +20,15 @@ from distribution import distribution
 
 
 # Variables
-logger = logging.getLogger()
+logger = logging.getLogger('coordinator')
 
 def usage(name):
     """ Print usage"""
     print "Usage: python %s <args>" % name
     print "     -h        : print this help"
     print "     -c <conf> : Configuration file"
+    print "     -i <ip>   : IP Address reacheable using RPC (default is localhost)"
+    print "     -p <port> : Port used for RPC methods (default is 8000)"
 
 
 def init_logging(debug):
@@ -81,9 +83,9 @@ def parse_configuration_file(conf_file):
                     conf['hosts'][s].remove(host)
 
                     # Generate new one
-                    for i in range(begin, end+1):
+                    for ip in xrange(begin, end+1):
                         host = {}
-                        host['ip'] = "%s%d" % (base, i)
+                        host['ip'] = "%s%d" % (base, ip)
                         host['port'] = port
                         
                         # Add new value
@@ -98,10 +100,11 @@ if __name__ == '__main__':
     # Variables
     conf = None
     debug = True
+    addr = ('localhost', 8000)
 
     # Parsing arguments
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'c:hd')
+        opts, args = getopt.getopt(sys.argv[1:], 'c:hdi:p:')
     except getopt.GetoptError, err:
         print "Bad arguments"
         print str(err)
@@ -116,6 +119,10 @@ if __name__ == '__main__':
             sys.exit(2)
         elif o == "-d":
             debug = True
+        elif o == "-i":
+            addr = (a,addr[1])
+        elif o == "-p":
+            addr = (addr[0],int(a))
         else:
             print "Unknown option"
 
@@ -131,4 +138,4 @@ if __name__ == '__main__':
     conf = parse_configuration_file(conf)
 
 
-    distribution.run(logger, conf)
+    distribution.run(logger, conf, addr)
