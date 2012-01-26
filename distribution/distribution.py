@@ -211,6 +211,9 @@ def run(logger, conf):
     #       * 'count'
     #       * 'ports'
 
+    # Experiment logger
+    experiment_logger = logging.getLogger('experiment')
+
     for n in range(conf['experiments']['count']):
         # We want to do each experiment 'count' times
 
@@ -258,15 +261,13 @@ def run(logger, conf):
                             ## Distribution method
 
                             # 0) Create distribution instance, logger, etc.
-                            # TODO Loggers pas bon :X
                             # Initialization of loggers
-                            # TODO ajouter heure + minutes
-                            date = time.strftime('%d_%m_%y', time.gmtime())
+                            date = time.strftime('%d_%m_%y_%H-%M-%S', time.gmtime())
                             file_logger = logging.FileHandler("log/%s-%s_%s_%s_%s-%s.log" \
                                     % (method, scan_method, scan_timing, nb_scanners, nb_targets, date))
 
                             # Adding handlers
-                            logger.addHandler(file_logger)
+                            experiment_logger.addHandler(file_logger)
 
                             # Formatting
                             file_formatting = logging.Formatter("%(asctime)s %(process)d (%(levelname)s)\t: %(message)s")
@@ -279,7 +280,7 @@ def run(logger, conf):
 
                             # 1) Pre_experiment
                             logger.info("pre_experiment -- Method %s - Scan technique %s - Scan timing %s - Nb scanner(s) %d - Nb target(s) %s - Port %s" \
-                                    % (method, scan_method, scan_timing, nb_scanners, nb_targets, ','.join(str(ports))))
+                                    % (method, scan_method, scan_timing, nb_scanners, nb_targets, ports))
                             # experiment.pre_experiment() 
 
                             # 2) Run_experiment
@@ -292,5 +293,8 @@ def run(logger, conf):
                                     % (method, scan_method, scan_timing, nb_scanners, nb_targets))
                             # experiment.post_experiment()
 
-                            logger.removeHandler(file_logger)
+                            experiment_logger.removeHandler(file_logger)
+
+                            # Sleep TODO remove this
+                            time.sleep(1)
 
