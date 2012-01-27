@@ -54,6 +54,9 @@ class DistributionMethod():
         # Init RPC proxies and methods
         self.init_rpc()
 
+        # Start firewall and target monitoring 
+        self.start_monitoring()
+
 
 
     def run_experiment(self):
@@ -66,7 +69,13 @@ class DistributionMethod():
     def post_experiment(self):
         """ Process all action that has to be done after an experiment
             For example: compute the Attacker Success Rate, create back_up, etc.
+
         """
+
+        # Stop monitoring, fetch traffic captured by targets and open ports
+        self.stop_monitoring()
+        self.update_targets_data()
+
         # Compute results, including ASR
         ASR = self.compute_experiment_result()
 
@@ -79,6 +88,7 @@ class DistributionMethod():
 
 
 # ########## Secondary methods 
+
     
     def init_rpc(self):
         """ Initialize scanner, firewall and target rpc proxies
@@ -137,8 +147,11 @@ class DistributionMethod():
             # for each target, verify portscan executed by scanners
             local_counter = 0 # Represents the local (it means for this target) number of port successfully scanned
             
-            for scanner, port, state in ports:
+            for port, value in ports.items():
                 # for each port scanned by a scanners, verify that it is successful
+                state = value[0]
+                scanner = value[1]
+
 
                 # 1) Verify that the found state is the real one
                 if self._portstate['targets'][target][port] != state:
@@ -211,6 +224,80 @@ class DistributionMethod():
         # Shuffle subparts
         random.shuffle(subparts, random.random)
         return subparts
+
+
+    def start_monitoring(self):
+        """ Start monitoring at firewall and target hosts """
+
+        # Start monitoring at firewalls 
+        for firewall_ip, firewall_rpc in self._p_firewalls.items():
+            args = self._conf['firewall_args']
+            self._logger.info("Starting monitor of the firewall %s" % firewall_ip)
+            firewall_rpc.start_snitch(args['patterns'], args['logfile'], args['timing'], self._addr)
+
+        # Start monitoring at targets
+        targets_ip = []
+        for target_dict in self._conf['hosts']['targets']:
+            targets_ip.append(target_dict['ip'])
+
+
+        for target_ip, target_rpc in self._p_targets.items():
+            self._logger.info("Starting monitor of the target %s" % target_ip)
+            target_rpc.start_monitor(targets_ip)
+
+
+
+    def stop_monitoring(self):
+        """ Stop monitoring at firewall and target hosts """
+
+        # Stop monitoring at firewalls 
+        for firewall_ip, firewall_rpc in self._p_firewalls.items():
+            self._logger.info("Stopping monitor of the firewall %s" % firewall_ip)
+            firewall_rpc.stop_snitch()
+
+        # Stop monitoring at targets
+        for target_ip, target_rpc in self._p_targets.items():
+            self._logger.info("Stopping monitor of the target %s" % target_ip)
+            target_rpc.stop_monitor()
+
+
+    def update_targets_data(self):
+        """ Fetch data from targets and update local data """
+        for target_ip, target_rpc in self._p.targets.items():
+
+            # 1) Get open ports
+            open_ports = target_rpc.get_open_ports()
+            
+            # Create struct if not existent
+            if target_ip not in self._portstate['targets']:
+                self._portstate['targets'][target_ip] = {}
+
+            for open_port in open_ports:
+                self._portstate['targets'][target_ip][open_port] = 'open'
+
+            # Looking for closed ports
+            for port in self._conf['ports']:
+                if port not in open_ports:
+                    self._portstate['targets'][target_ip][port] = 'closed'
+
+            # 2) Get captured traffic
+            captured_traffic = target_rpc.get_traffic()
+
+            for scanner in captured_traffic:
+                for local_port in captured_traffic[scanner]:
+                    for pkt in captured_traffic[scanner][local_port]:
+                        
+                        # Creating struct if not existent
+                        if scanner not in self._traffic['targets']:
+                            self._traffic['targets'][scanner] = {}
+
+                        if local_port not in self._traffic['targets'][scanner]:
+                            self._traffic['targets'][scanner][local_port] = []
+
+                        # Copy to local data
+                        self._traffic['targets'][scanner][local_port].append(pkt[0], pkt[1])
+
+
 
 
 # ########## RPC methods

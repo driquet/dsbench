@@ -233,7 +233,7 @@ class Scanner():
         if len(coordinator):
             # Create a RPC proxy and send an alert to the coordinator
             coordinator_proxy = xmlrpclib.ServerProxy("http://%s:%d/" % coordinator)
-            coordinator_proxy.add_event(('scanner', self._addr[0]))
+            coordinator_proxy.add_event(('scanner', self._addr[0], target))
 
 
 

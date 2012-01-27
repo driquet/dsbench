@@ -165,6 +165,7 @@ class Firewall:
 
                 new_alert = {}
                 new_alert['patterns'] = list(matching_patterns)
+                new_alert['detected_by'] = self._addr[0]
                 new_alert['ip_src'] = m.group('ip_src')
                 new_alert['ip_dst'] = m.group('ip_dst')
                 new_alert['date'] = time.mktime(timestamp)
