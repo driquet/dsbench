@@ -4,14 +4,14 @@
         "scanners":
             [
                 {
-                    "ip"   : "192.168.0.101-164",
+                    "ip"   : "192.168.2.50",
                     "port" : 8000
                 }
             ],
         "targets":
             [
                 {
-                    "ip"   : "172.16.0.101-164",
+                    "ip"   : "192.168.2.55",
                     "port" : 8000
                 }
             ],
@@ -28,14 +28,14 @@
     "experiments":
     {
         "distributionMethods" : ["parallel"],
-        "scanMethods"         : ["sS"],
-        "scanTimings"         : ["insane", "aggressive"],
-        "scannerNumberValues" : [1,2],
+        "scanMethods"         : ["-sF", "-sS", "-sX", "-sT", "-sN"],
+        "scanTimings"         : ["insane"],
+        "scannerNumberValues" : [1],
         "targetNumberValues"  : [1],
-        "count"               : 3,
+        "count"               : 1,
         "ports"               : 
             [
-                22, 80, 443, 8080, 1234, 1231, 21, 52, 88, 15, 123
+                22, 631, 111
             ],
         "firewall_args":
         {

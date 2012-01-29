@@ -23,9 +23,8 @@ import re
 import sys
 import getopt
 import threading
+import xmlrpclib
 from SimpleXMLRPCServer import SimpleXMLRPCServer
-
-import constant
 
 
 # Variables
@@ -41,7 +40,7 @@ tcp_sent_re = re.compile("SENT"
         "(?P<ip_dst>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
         ":"
         "(?P<port_dst>\d{1,5}) "
-        "(?P<flags>\w+)"
+        "(?P<flags>\w+)?"
         ".*"
         "seq=(?P<seq>\d+)"
        )
@@ -61,8 +60,18 @@ tcp_rcvd_re = re.compile("RCVD"
         "seq=(?P<seq>\d+)"
        )
 
+tcp_conn_re = re.compile("CONN"
+        ".*"
+        "TCP "
+        "(?P<ip_src>.*)"
+        " > "
+        "(?P<ip_dst>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+        ":"
+        "(?P<port_dst>\d{1,5}) "
+       )
+
 port_state_re = re.compile("Discovered"
-        " (?P<state>\w+) "
+        " (?P<state>[\w\|]+) "
         "port (?P<port>\d+)"
         ".* on "
         "(?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
@@ -125,12 +134,12 @@ class Scanner():
         self._server.register_function(self.poll_scan, "poll_scan")
         self._server.register_function(self.scan_state, "scan_state")
 
-    def exec_scan_rpc(self, scantype, timing, target, ports='-F', coordinator=()):
+    def exec_scan_rpc(self, scantype, timing, coordinator, target, ports):
         """ RPC method called: create a thread to launch the portscan """
-        t = threading.Timer(0, self.exec_scan, [scantype, timing, target, ports])
+        t = threading.Timer(0, self.exec_scan, [scantype, timing, coordinator, target, ports])
         t.start()
 
-    def exec_scan(self, scantype, timing, target, ports='-F', coordinator=()):
+    def exec_scan(self, scantype, timing, coordinator, target, ports):
         """ Execute a portscan """
         ## Portscan variables
         self._nbports = 0
@@ -144,7 +153,7 @@ class Scanner():
         self._traffic['both'] = {}
 
         day_n_hour = time.strftime("%d-%m-%y_%H-%M-%S")
-        self._logfilename = "log/%s_%s.xml" % (constant.types[scantype].split()[0].lower(), day_n_hour) # Filename in which is stored debug messages
+        self._logfilename = "log/%s_%s.xml" % (scantype.lower(), day_n_hour) # Filename in which is stored debug messages
 
         ## Generate Nmap command
         nmap_cmd = "nmap "          \
@@ -176,6 +185,7 @@ class Scanner():
         logger.debug("  Target: %s" % target)
         logger.debug("  Timing: %s" % timing)
         logger.debug("  Ports: %s" % ports)
+        logger.debug("  Coordinator: %s" % coordinator)
 
         ## Execute Nmap command
         logger.info("Executing command ...")
@@ -200,10 +210,12 @@ class Scanner():
             # Sent
             m = tcp_sent_re.search(output)
             if m:
+                flags = m.group('flags')
+                if flags == None: flags = ""
                 logger.debug("TCP SENT -- %s:%s -> %s:%s -- flags (%s) -- seq %s"
-                        % (m.group('ip_src'), m.group('port_src'), m.group('ip_dst'), m.group('port_dst'), m.group('flags'), m.group('seq')))
-                add_traffic_event(self._traffic['sent'], m.group('ip_dst'), m.group('port_dst'), (m.group('flags'), m.group('seq'), time.time()))
-                add_traffic_event(self._traffic['both'], m.group('ip_dst'), m.group('port_dst'), ('out', m.group('flags'), m.group('seq'), time.time()))
+                        % (m.group('ip_src'), m.group('port_src'), m.group('ip_dst'), m.group('port_dst'), flags, m.group('seq')))
+                add_traffic_event(self._traffic['sent'], m.group('ip_dst'), m.group('port_dst'), (flags, m.group('seq'), time.time()))
+                add_traffic_event(self._traffic['both'], m.group('ip_dst'), m.group('port_dst'), ('out', flags, m.group('seq'), time.time()))
                 continue
 
             # Received
@@ -215,6 +227,15 @@ class Scanner():
                 add_traffic_event(self._traffic['both'], m.group('ip_src'), m.group('port_src'), ('in', m.group('flags'), m.group('seq'), time.time()))
                 continue
 
+            # CONNect technique (uses connect function)
+            m = tcp_conn_re.search(output)
+            if m:
+                logger.debug("TCP CONN -- %s -> %s:%s"
+                        % (m.group('ip_src'), m.group('ip_dst'), m.group('port_dst')))
+                add_traffic_event(self._traffic['sent'], m.group('ip_dst'), m.group('port_dst'), ('S', time.time()))
+                add_traffic_event(self._traffic['both'], m.group('ip_dst'), m.group('port_dst'), ('out', 'S', time.time()))
+                continue
+
             ## Port state
             m = port_state_re.search(output)
             if m:
@@ -224,15 +245,23 @@ class Scanner():
                 self._nbports -= 1
                 if not self._nbports:
                     logger.info("Scan finished")
-                self._portstate[m.group('port')] = (m.group('state'), time.time())
+
+                state = m.group('state')
+                if state.find('|') != -1:
+                    state = state[:state.find('|')]
+
+                self._portstate[m.group('port')] = (state, time.time())
                 continue
 
         self._timestamps['end'] = time.time()
 
+
+        logger.info("Scan finished")
         # Alert the coordinator that the portscan is finished
         if len(coordinator):
             # Create a RPC proxy and send an alert to the coordinator
-            coordinator_proxy = xmlrpclib.ServerProxy("http://%s:%d/" % coordinator)
+            logger.info("Scan finished -- Sending an alert to coordinator %s" % coordinator[0])
+            coordinator_proxy = xmlrpclib.ServerProxy("http://%s:%d/" % (coordinator[0], coordinator[1]))
             coordinator_proxy.add_event(('scanner', self._addr[0], target))
 
 
@@ -293,7 +322,7 @@ if __name__ == '__main__':
         elif o == "-p":
             remoteAddr = (remoteAddr[0],int(a))
         elif o == "-h":
-            usage(args[0])
+            usage(sys.argv[0])
             sys.exit(2)
         else:
             print "Unknown option"

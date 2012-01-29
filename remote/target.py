@@ -84,8 +84,10 @@ class Target:
             Actually, it will only return tcp open ports
             This will work on a unix host for which port state can be accessed thanks to /proc/net/tcp file
         """
+        logger.info("Fetching ports state")
+
         # Read the content of the /proc/net/tcp file
-       with open('/proc/net/tcp', 'r') as f:
+        with open('/proc/net/tcp', 'r') as f:
             content = f.readlines()
             content.pop(0)
 
@@ -103,10 +105,16 @@ class Target:
                 # Listening port, add" it to the open ports list
                 # Fetch port number
                 host,port = line_array[1].split(':')
-                port = str(int(s, 16))
+                port = str(int(port, 16))
+
+
+                # Verifying it is an open port
+                if host != '00000000':
+                    continue
 
                 # Add it to the ports list
                 open_ports.append(port)
+                logger.info("Port %s is open" % port)
 
         return open_ports
 
@@ -124,6 +132,7 @@ class Target:
         return self._traffic
 
     def start_monitor(self, ips):
+        logger.info(ips)
         """ Start a monitoring session filtering to the given ips """
         # Create the scapy socket
         lsock = L2ListenSocket(iface=self._iface, promisc=0)
@@ -144,7 +153,7 @@ class Target:
             # Filter monitored ips
             if not (pkt.sprintf("%IP.src%") in ips) and \
                not (pkt.sprintf("%IP.dst%") in ips):
-                logger.debug("Packet outside monitored hosts list - %s or %s" % (pkt.sprintf("%IP.dst%"), pkt.sprintf("%IP.src%")))
+                logger.debug("Packet outside monitored hosts list - src %s dst %s" % (pkt.sprintf("%IP.src%"), pkt.sprintf("%IP.dst%")))
                 continue
 
             # Fetching data
@@ -169,25 +178,28 @@ class Target:
                 target_port = tcp_dport
                 logger.info("RCVD PKT - %s -> %s:%s - flags %s - seq %s" %
                         (ip_scanner, ip_target, target_port, ip_flags, ip_seq))
+
+                # Create dict and list if needed
+                if ip_scanner not in self._traffic:
+                    self._traffic[ip_scanner] = {}
+                if target_port not in self._traffic[ip_scanner]:
+                    self._traffic[ip_scanner][target_port] = []
+
+
+
+
+                pkt_info = (ip_flags, ip_seq, pkt_time)
+                logger.debug(pkt_info)
+                self._traffic[ip_scanner][target_port].append(pkt_info)
             else:
-                # Sent packet
-                ip_scanner = ip_dst
-                ip_target = ip_src
-                target_port = tcp_sport
-                logger.info("SENT PKT - %s -> %s:%s - flags %s - seq %s" %
-                        (ip_scanner, ip_target, target_port, ip_flags, ip_seq))
+                # Sent packet or something else
+               #ip_scanner = ip_dst
+               #ip_target = ip_src
+               #target_port = tcp_sport
+               #logger.debug("SENT PKT - %s -> %s:%s - flags %s - seq %s" %
+               #        (ip_scanner, ip_target, target_port, ip_flags, ip_seq))
+                pass
 
-
-            # Create dict and list if needed
-            if ip_scanner not in self._traffic:
-                self._traffic[ip_scanner] = {}
-            if target_port not in self._traffic[ip_scanner]:
-                self._traffic[ip_scanner][target_port] = []
-
-
-            pkt_info = (ip_flags, ip_seq, pkt_time)
-            logger.debug(pkt_info)
-            self._traffic[ip_scanner][target_port].append(pkt_info)
 
 
         lsock.close()
@@ -224,13 +236,13 @@ if __name__ == '__main__':
         elif o == "-p":
             remoteAddr = (remoteAddr[0],int(a))
         elif o == "-h":
-            usage(args[0])
+            usage(sys.argv[0])
             sys.exit(2)
         else:
             print "Unknown option"
 
     # Initialisation
-    target = Target(interface, remoteAddr, debug=True)
+    target = Target(interface, remoteAddr, debug=False)
 
     # Serving forever
     try:

@@ -19,9 +19,9 @@ import re
 import sys
 import getopt
 import threading
+import xmlrpclib
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 
-import constant
 
 
 # Variables
@@ -74,12 +74,12 @@ class Firewall:
         self._server.register_function(self.stop_snitch, "stop_snitch")
         self._server.register_function(self.snitch_state, "snitch_state")
 
-    def start_snitch_rpc(self, pattern, logfile, timing, coordinator=()):
+    def start_snitch_rpc(self, pattern, logfile, timing, coordinator):
         """ RPC method: launch a thread that creates the snitch """
         t = threading.Timer(0, self.start_snitch, [pattern, logfile, timing, coordinator])
         t.start()
     
-    def start_snitch(self, patterns, logfile, timing, coordinator=()):
+    def start_snitch(self, patterns, logfile, timing, coordinator):
         """ Create a snitch
             Open the logfile and read it until the coordinator stop the experiment
                 - coordinator is a list like (ip, port) containing ip and port of the coordinator
