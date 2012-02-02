@@ -4,14 +4,14 @@
         "scanners":
             [
                 {
-                    "ip"   : "192.168.2.50",
+                    "ip"   : "172.16.0.101",
                     "port" : 8000
                 }
             ],
         "targets":
             [
                 {
-                    "ip"   : "192.168.2.55",
+                    "ip"   : "192.168.0.101",
                     "port" : 8000
                 }
             ],
@@ -28,7 +28,7 @@
     "experiments":
     {
         "distributionMethods" : ["parallel"],
-        "scanMethods"         : ["-sF", "-sS", "-sX", "-sT", "-sN"],
+        "scanMethods"         : ["-sN"],
         "scanTimings"         : ["insane"],
         "scannerNumberValues" : [1],
         "targetNumberValues"  : [1],
